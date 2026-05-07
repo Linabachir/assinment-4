@@ -1,235 +1,74 @@
-# Assignment 4 – NCU Regulation Assistant
+# 🛠️ Prerequisites
+Before you begin, ensure you have the following installed:
 
-## Overview
+* Python 3.11 (Strict requirement) 
 
-This project implements a lightweight Knowledge Graph (KG) based regulation assistant for NCU regulations using:
+* Docker Desktop (Required to run the Neo4j database)
 
-- SQLite for structured regulation storage
-- Neo4j for graph representation
-- HuggingFace local LLM (`Qwen2.5-3B-Instruct`)
-- Python 3.11
-- Docker (Neo4j)
+* Internet access for first-time HuggingFace model download (local model will be cached)
+# ⚙️ Environment Setup
+### 1. Database Setup (Neo4j via Docker)
 
-The system parses PDF regulations, builds a knowledge graph, retrieves relevant regulation content, and generates grounded answers using a local language model.
+You must run a local Neo4j instance using Docker. Run the following command in your terminal:
 
----
+` docker run -d --name neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:latest `
 
-# Project Structure
+Explanation of flags:
 
-```text
-Assignment-4-main/
-│
-├── source/                 # Raw regulation PDFs
-├── setup_data.py           # PDF parsing + SQLite generation
-├── build_kg.py             # Neo4j graph construction
-├── query_system.py         # Interactive chatbot
-├── auto_test.py            # Benchmark evaluation
-├── llm_loader.py           # Local HuggingFace model loader
-├── requirements.txt
-├── ncu_regulations.db
-└── hf_model_cache/
+* -d: Runs the container in detached mode (background).
+
+*  -p 7474:7474: Exposes the web interface port (Browser).
+
+*  -p 7687:7687: Exposes the Bolt protocol port (Python connection).
+
+*  -e NEO4J_AUTH=...: Sets the username (neo4j) and password (password).
+
+Verification: After running the command, check if the database is ready:
+
+1. Open your browser and go to http://localhost:7474.
+
+2. Login with user: neo4j and password: password.
+
+### 2. Virtual Environment Setup
+
+It is highly recommended to use a virtual environment to manage dependencies.
+
+**For macOS / Linux:**
 ```
-
----
-
-# Environment Setup
-
-## Requirements
-
-- Python 3.11
-- Docker Desktop
-- Internet connection (first HuggingFace download only)
-
----
-
-# 1. Start Neo4j with Docker
-
-```bash
-docker run -d --name neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:latest
-```
-
-Neo4j Browser:
-
-```text
-http://localhost:7474
-```
-
-Credentials:
-
-```text
-Username: neo4j
-Password: password
-```
-
----
-
-# 2. Create Virtual Environment
-
-## Windows
-
-```bash
+# Create virtual environment
 python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
 
-## macOS / Linux
-
-```bash
-python -m venv venv
+# Activate environment
 source venv/bin/activate
 ```
+**For Windows:**
+```
+# Create virtual environment
+python -m venv venv
 
----
-
-# 3. Install Dependencies
-
-```bash
-pip install -r requirements.txt
+# Activate environment
+venv\Scripts\activate
 ```
 
----
+### 3. Install Dependencies
 
-# Execution Order
+`pip install -r requirements.txt`
 
-## Step 1 — Parse Regulations
+# 📂 File Descriptions
 
-```bash
-python setup_data.py
-```
+* **source/:** Folder containing raw English PDF regulations
+* **setup_data.py:** Parses PDFs using pdfplumber and Regex, cleans the text, and stores structured data into a local SQLite database
+* **build_kg.py:** Reads from SQLite and executes Cypher queries to create nodes (Regulation, Article) and relationships (HAS_ARTICLE) in Neo4j.
+* **query_system.py:** The interactive chatbot. It retrieves full regulation context and uses the LLM to generate answers.
+* **auto_test.py:** Runs benchmark questions in test_data.json and uses an "LLM-as-a-Judge" to score your system (Pass/Fail).
 
-This step:
-- parses PDFs using `pdfplumber`
-- extracts regulation articles
-- stores structured data into SQLite
+# 🚀 Execution Order
+**make sure you have already run neo4j in docker**
+**run commands in this repository root folder**
+1. `python setup_data.py`
+2. `python build_kg.py`
+3. (Not necessary)`python query_system.py`: Test your system manually to see if it answers correctly.
+4. `python auto_test.py`: run the benchmark test  
 
----
 
-## Step 2 — Build Knowledge Graph
 
-```bash
-python build_kg.py
-```
-
-This step:
-- creates `Regulation`, `Article`, and `Rule` nodes
-- creates relationships:
-
-```text
-(Regulation)-[:HAS_ARTICLE]->(Article)-[:CONTAINS_RULE]->(Rule)
-```
-
-- creates Neo4j full-text indexes
-
----
-
-## Step 3 — Run Interactive Assistant
-
-```bash
-python query_system.py
-```
-
-Example questions:
-
-```text
-What happens if a student forgets their ID card?
-What are the examination rules?
-student ID
-```
-
----
-
-## Step 4 — Run Benchmark Evaluation
-
-```bash
-python auto_test.py
-```
-
-This script automatically evaluates:
-- Neo4j graph integrity
-- Rule coverage
-- QA pipeline performance
-
----
-
-# Knowledge Graph Schema
-
-## Regulation Node
-
-```text
-Regulation {
-    id,
-    name,
-    category
-}
-```
-
-## Article Node
-
-```text
-Article {
-    number,
-    content,
-    reg_name,
-    category
-}
-```
-
-## Rule Node
-
-```text
-Rule {
-    rule_id,
-    type,
-    action,
-    result,
-    art_ref,
-    reg_name
-}
-```
-
----
-
-# Retrieval Pipeline
-
-The chatbot pipeline follows:
-
-```text
-User Question
-    ↓
-Keyword Extraction
-    ↓
-Neo4j Retrieval
-    ↓
-Top-K Relevant Articles
-    ↓
-Prompt Construction
-    ↓
-Local LLM Generation
-```
-
----
-
-# Model
-
-Local HuggingFace model used:
-
-```text
-Qwen/Qwen2.5-3B-Instruct
-```
-
-The model is automatically downloaded during the first execution and cached locally.
-
----
-
-# Notes
-
-- First model download may take several minutes (~6GB).
-- The model runs locally on CPU.
-- Neo4j must be running before executing the scripts.
-- The system uses grounded generation based only on retrieved regulation content.
-
----
-
-# Authors
-
-NCU Assignment 4 – Knowledge Graph Regulation Assistant
